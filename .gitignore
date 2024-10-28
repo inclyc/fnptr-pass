@@ -1,0 +1,5 @@
+/.vscode
+
+*.ll
+/assign2-tests/
+/build
