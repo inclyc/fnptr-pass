@@ -12,23 +12,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <llvm/Support/CommandLine.h>
-#include <llvm/IRReader/IRReader.h>
-#include <llvm/IR/LLVMContext.h>
-#include <llvm/Support/SourceMgr.h>
-#include <llvm/IR/LegacyPassManager.h>
-#include <llvm/Support/ToolOutputFile.h>
-
-#include <llvm/Transforms/Scalar.h>
-#include <llvm/Transforms/Utils.h>
-
-#include <llvm/IR/Function.h>
-#include <llvm/Pass.h>
-#include <llvm/Support/raw_ostream.h>
+#include "FunctionSetAnalysis.h"
+#include "Support.h"
 
 #include <llvm/Bitcode/BitcodeReader.h>
 #include <llvm/Bitcode/BitcodeWriter.h>
-
+#include <llvm/IR/IntrinsicInst.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IRReader/IRReader.h>
+#include <llvm/Pass.h>
+#include <llvm/Support/CommandLine.h>
+#include <llvm/Transforms/Scalar.h>
+#include <llvm/Transforms/Utils.h>
 
 using namespace llvm;
 static ManagedStatic<LLVMContext> GlobalContext;
@@ -50,20 +46,43 @@ struct EnableFunctionOptPass: public FunctionPass {
 
 char EnableFunctionOptPass::ID=0;
 
-	
-///!TODO TO BE COMPLETED BY YOU FOR ASSIGNMENT 2
-///Updated 11/10/2017 by fargo: make all functions
-///processed by mem2reg before this pass.
+void printSet(FunctionSet::const_iterator Begin,
+              FunctionSet::const_iterator End) {
+  assert(Begin != End);
+
+  const Function &F = assertDeref(*Begin);
+  errs() << F.getName();
+
+  ++Begin;
+
+  if (Begin != End) {
+    errs() << ", ";
+    printSet(Begin, End);
+  }
+}
+
 struct FuncPtrPass : public ModulePass {
   static char ID; // Pass identification, replacement for typeid
   FuncPtrPass() : ModulePass(ID) {}
 
-  
   bool runOnModule(Module &M) override {
-    errs() << "Hello: ";
-    errs().write_escaped(M.getName()) << '\n';
-    M.dump();
-    errs()<<"------------------------------\n";
+    const auto FnSet = analyzeFunctions(M);
+    for (const auto &F : M) {
+      for (const auto &BB : F) {
+        for (const auto &I : BB) {
+          if (dyn_cast<CallInst>(&I) && !dyn_cast<DbgInfoIntrinsic>(&I)) {
+            const auto &Call = assertDeref(dyn_cast<CallInst>(&I));
+            const auto *Operand = Call.getCalledOperand();
+            auto Set = FnSet.at(Operand);
+            Set.erase(nullptr);
+            assert(!Set.empty());
+            errs() << Call.getDebugLoc().getLine() << " : ";
+            printSet(Set.begin(), Set.end());
+            errs() << "\n";
+          }
+        }
+      }
+    }
     return false;
   }
 };
@@ -94,7 +113,7 @@ int main(int argc, char **argv) {
    }
 
    llvm::legacy::PassManager Passes;
-   	
+
    ///Remove functions' optnone attribute in LLVM5.0
    Passes.add(new EnableFunctionOptPass());
    ///Transform it to SSA

@@ -17,6 +17,7 @@ message(STATUS "LLVM LIBS : ${LLVM_LINK_COMPONENTS}")
 
 add_executable(llvmassignment
   LLVMAssignment.cpp
+  FunctionSetAnalysis.cpp
   )
 
 target_link_libraries(llvmassignment
