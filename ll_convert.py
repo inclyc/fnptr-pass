@@ -4,7 +4,10 @@ import os.path
 
 
 def convert(input_file, output_file):
-    run(["clang", input_file, "-O0", "-emit-llvm", "-S", "-o", output_file], check=True)
+    run(
+        ["clang", input_file, "-O0", "-emit-llvm", "-g", "-S", "-o", output_file],
+        check=True,
+    )
 
 
 def convert_dir(input_dir, output_dir):
