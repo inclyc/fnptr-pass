@@ -24,7 +24,8 @@ std::set<const Function *> invoke(Context &Ctx, const Function &Callee);
 
 std::set<const Function *> analyzeValue(Context &Ctx, const Value &V) {
   if (const auto PFunc = dyn_cast<const Function>(&V)) {
-    return Ctx.Set[&V] = {PFunc};
+    Ctx.Set[&V].insert(PFunc);
+    return Ctx.Set[&V];
   } else if (dyn_cast_or_null<DbgInfoIntrinsic>(&V)) {
     return {};
   } else if (const auto PCall = dyn_cast_or_null<CallInst>(&V)) {
@@ -50,10 +51,17 @@ std::set<const Function *> analyzeValue(Context &Ctx, const Value &V) {
       Set.insert(ReturnedSet.begin(), ReturnedSet.end());
     }
     return Set;
+  } else if (const auto PReturn = dyn_cast_or_null<ReturnInst>(&V)) {
+    const auto &Return = *PReturn;
+    const auto *PValue = Return.getReturnValue();
+    if (!PValue)
+      return {};
+    return analyzeValue(Ctx, *PValue);
   } else if (!V.getType()->isPointerTy()) {
     return {};
   } else if (const auto PNull = dyn_cast_or_null<ConstantPointerNull>(&V)) {
-    return {nullptr};
+    Ctx.Set[&V].insert(nullptr);
+    return Ctx.Set[&V];
   } else if (const auto PPHi = dyn_cast_or_null<PHINode>(&V)) {
     const auto &PHI = assertDeref(PPHi);
     std::set<const llvm::Function *> &Set = Ctx.Set[&PHI];
